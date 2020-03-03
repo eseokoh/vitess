@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/log"
 	"vitess.io/vitess/go/vt/sqlparser"
 
 	binlogdatapb "vitess.io/vitess/go/vt/proto/binlogdata"
@@ -242,7 +243,27 @@ func (tp *TablePlan) applyChange(rowChange *binlogdatapb.RowChange, executor fun
 	}
 	switch {
 	case !before && after:
-		return execParsedQuery(tp.Insert, bindvars, executor)
+		// Ensure there is one and only one value in lastpk and pkrefs.
+		var expectrows uint64 = 1
+		if tp.Lastpk != nil {
+			rowVal, _ := sqltypes.BindVariableToValue(bindvars["a_"+tp.PKReferences[0]])
+			rowValStr := rowVal.ToString()
+			lastpkvalstr := tp.Lastpk.Rows[0][0].ToString()
+			if len(rowValStr) != len(lastpkvalstr) {
+				log.Errorf("Lengths don't match: %v vs %v", rowValStr, lastpkvalstr)
+			}
+			if rowValStr > lastpkvalstr {
+				expectrows = 0
+			}
+		}
+		qr, err := execParsedQuery(tp.Insert, bindvars, executor)
+		if err != nil {
+			log.Errorf("unexpected error: %v", err)
+			return nil, err
+		}
+		if qr.RowsAffected != expectrows {
+			log.Errorf("expected: %v, got %v, query: %v, bv: %v", expectrows, qr.RowsAffected, tp.Insert, bindvars)
+		}
 	case before && !after:
 		if tp.Delete == nil {
 			return nil, nil
