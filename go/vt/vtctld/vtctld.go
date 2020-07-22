@@ -164,7 +164,7 @@ func InitVtctld(ts *topo.Server) {
 	var realtimeStats *realtimeStats
 	if *enableRealtimeStats {
 		var err error
-		realtimeStats, err = newRealtimeStats(ts)
+		realtimeStats, err = newRealtimeStats(context.Background(), ts)
 		if err != nil {
 			log.Errorf("Failed to instantiate RealtimeStats at startup: %v", err)
 		}

@@ -75,7 +75,7 @@ func TestRealtimeStatsWithQueryService(t *testing.T) {
 
 	fqs1.AddDefaultHealthResponse()
 
-	realtimeStats, err := newRealtimeStats(ts)
+	realtimeStats, err := newRealtimeStats(context.Background(), ts)
 	if err != nil {
 		t.Fatalf("newRealtimeStats error: %v", err)
 	}
@@ -122,7 +122,7 @@ func checkStats(realtimeStats *realtimeStats, tablet *testlib.FakeTablet, want *
 		if err != nil {
 			continue
 		}
-		if result.DeepEqual(&discovery.LegacyTabletStats{}) {
+		if result.DeepEqual(&discovery.TabletHealth{}) {
 			continue
 		}
 		got := result.Stats
@@ -134,7 +134,7 @@ func checkStats(realtimeStats *realtimeStats, tablet *testlib.FakeTablet, want *
 	return fmt.Errorf("timeout error when getting tabletStatuses")
 }
 
-// newRealtimeStatsForTesting creates a new realtimeStats object without creating a LegacyHealthCheck object.
+// newRealtimeStatsForTesting creates a new realtimeStats object without creating a HealthCheck object.
 func newRealtimeStatsForTesting() *realtimeStats {
 	tabletStatsCache := newTabletStatsCache()
 	return &realtimeStats{
