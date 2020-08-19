@@ -55,6 +55,10 @@ type noopVCursor struct {
 	ctx context.Context
 }
 
+func (t noopVCursor) ExecuteLock(rs *srvtopo.ResolvedShard, query *querypb.BoundQuery) (*sqltypes.Result, error) {
+	panic("implement me")
+}
+
 func (t noopVCursor) NeedsReservedConn() {
 }
 
@@ -146,7 +150,6 @@ func (t noopVCursor) SubmitOnlineDDL(onlineDDl *schema.OnlineDDL) error {
 }
 
 var _ VCursor = (*loggingVCursor)(nil)
-
 var _ SessionActions = (*loggingVCursor)(nil)
 
 // loggingVCursor logs requests and allows you to verify

@@ -28,8 +28,10 @@ import (
 
 	"vitess.io/vitess/go/vt/log"
 
-	"github.com/gogo/protobuf/proto"
-	"vitess.io/vitess/go/sqltypes"
+	"github.com/golang/protobuf/proto"
+	"github.com/olekukonko/tablewriter"
+
+  "vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/concurrency"
 	binlogdatapb "vitess.io/vitess/go/vt/proto/binlogdata"
 	querypb "vitess.io/vitess/go/vt/proto/query"
@@ -383,6 +385,10 @@ func (wr *Wrangler) listStreams(ctx context.Context, workflow, keyspace string) 
 	if err != nil {
 		return err
 	}
+	if len(replStatus.Statuses) == 0 {
+		return fmt.Errorf("no streams found for workflow %s in keyspace %s", workflow, keyspace)
+	}
+
 	if err := dumpStreamListAsJSON(replStatus, wr); err != nil {
 		return err
 	}
