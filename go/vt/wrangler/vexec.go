@@ -29,9 +29,8 @@ import (
 	"vitess.io/vitess/go/vt/log"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/olekukonko/tablewriter"
 
-  "vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/concurrency"
 	binlogdatapb "vitess.io/vitess/go/vt/proto/binlogdata"
 	querypb "vitess.io/vitess/go/vt/proto/query"
@@ -78,6 +77,78 @@ func newVExec(ctx context.Context, workflow, keyspace, query string, wr *Wrangle
 		query:    query,
 		wr:       wr,
 	}
+}
+
+// called for workflow stop/start/delete. Only rows affected are reported per tablet
+func (wr *Wrangler) QueryResultForRowsAffected(results map[*topo.TabletInfo]*sqltypes.Result) *sqltypes.Result {
+	var qr = &sqltypes.Result{}
+	qr.RowsAffected = uint64(len(results))
+	qr.Fields = []*querypb.Field{{
+		Name: "Tablet",
+		Type: sqltypes.VarBinary,
+	}, {
+		Name: "RowsAffected",
+		Type: sqltypes.Uint64,
+	}}
+	var row2 []sqltypes.Value
+	for tablet, result := range results {
+		row2 = nil
+		row2 = append(row2, sqltypes.NewVarBinary(tablet.AliasString()))
+		row2 = append(row2, sqltypes.NewUint64(result.RowsAffected))
+		qr.Rows = append(qr.Rows, row2)
+	}
+	return qr
+}
+
+func (wr *Wrangler) QueryResultForTabletResults(results map[*topo.TabletInfo]*sqltypes.Result) *sqltypes.Result {
+	var qr = &sqltypes.Result{}
+	qr.RowsAffected = uint64(len(results))
+	qr.Fields = []*querypb.Field{{
+		Name: "Tablet",
+		Type: sqltypes.VarBinary,
+	}}
+	var row2 []sqltypes.Value
+	for tablet, result := range results {
+		for _, row := range result.Rows {
+			if len(qr.Fields) == 1 {
+				qr.Fields = append(qr.Fields, result.Fields...)
+			}
+			row2 = nil
+			row2 = append(row2, sqltypes.NewVarBinary(tablet.AliasString()))
+			row2 = append(row2, row...)
+			qr.Rows = append(qr.Rows, row2)
+		}
+	}
+	return qr
+}
+
+// VExecResult runs VExec and the naggregates the results into a single *sqltypes.Result
+func (wr *Wrangler) VExecResult(ctx context.Context, workflow, keyspace, query string, dryRun bool) (qr *sqltypes.Result, err error) {
+
+	results, err := wr.VExec(ctx, workflow, keyspace, query, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	if dryRun {
+		return nil, nil
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	var numFields int
+	for _, result := range results {
+		numFields = len(result.Fields)
+		break
+	}
+	if numFields != 0 {
+		qr = wr.QueryResultForTabletResults(results)
+	} else {
+		qr = wr.QueryResultForRowsAffected(results)
+	}
+	if len(qr.Rows) == 0 {
+		return nil, nil
+	}
+	return qr, nil
 }
 
 // VExec executes queries on a table on all masters in the target keyspace of the workflow
