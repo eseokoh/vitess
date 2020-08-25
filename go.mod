@@ -8,7 +8,6 @@ require (
 	github.com/Azure/go-autorest/autorest v0.10.0 // indirect
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/PuerkitoBio/goquery v1.5.1
-	github.com/TylerBrock/colorjson v0.0.0-20180527164720-95ec53f28296
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/aws/aws-sdk-go v1.28.8
 	github.com/buger/jsonparser v0.0.0-20200322175846-f7e751efca13
@@ -21,7 +20,7 @@ require (
 	github.com/corpix/uarand v0.1.1 // indirect
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/go-sql-driver/mysql v1.5.0
-	github.com/gogo/protobuf v1.3.1
+	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/mock v1.3.1
@@ -47,9 +46,7 @@ require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/krishicks/yaml-patch v0.0.10
 	github.com/magiconair/properties v1.8.1
-	github.com/manifoldco/promptui v0.7.0
 	github.com/minio/minio-go v0.0.0-20190131015406-c8a261de75c1
-	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.0 // indirect
 	github.com/mitchellh/mapstructure v1.2.3 // indirect
 	github.com/olekukonko/tablewriter v0.0.5-0.20200416053754-163badb3bac6
@@ -65,7 +62,7 @@ require (
 	github.com/prometheus/common v0.9.1
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/spf13/cobra v0.0.5
+	github.com/spyzhov/ajson v0.4.2
 	github.com/stretchr/testify v1.4.0
 	github.com/tchap/go-patricia v0.0.0-20160729071656-dd168db6051b
 	github.com/tebeka/selenium v0.9.9

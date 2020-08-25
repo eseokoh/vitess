@@ -1289,7 +1289,7 @@ func TestTypes(t *testing.T) {
 }
 
 func TestJSON(t *testing.T) {
-	t.Skip("This test is disabled because every flavor of mysql has a different behavior.")
+	//t.Skip("This test is disabled because every flavor of mysql has a different behavior.")
 
 	// JSON is supported only after mysql57.
 	if err := env.Mysqld.ExecuteSuperQuery(context.Background(), "create table vitess_json(id int default 1, val json, primary key(id))"); err != nil {
@@ -1301,15 +1301,15 @@ func TestJSON(t *testing.T) {
 	}
 	defer execStatement(t, "drop table vitess_json")
 	engine.se.Reload(context.Background())
-
+	json := "{\\\"foo\\\":\\\"bar\\\"}"
 	testcases := []testcase{{
 		input: []string{
-			`insert into vitess_json values(1, '{"foo": "bar"}')`,
+			fmt.Sprintf(`insert into vitess_json values(1, '%s')`, json),
 		},
 		output: [][]string{{
 			`begin`,
-			`type:FIELD field_event:<table_name:"vitess_json" fields:<name:"id" type:INT32 > fields:<name:"val" type:JSON > > `,
-			`type:ROW row_event:<table_name:"vitess_json" row_changes:<after:<lengths:1 lengths:24 values:"1JSON_OBJECT('foo','bar')" > > > `,
+			`type:FIELD field_event:<table_name:"vitess_json" fields:<name:"id" type:INT32 table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"id" column_length:11 charset:63 > fields:<name:"val" type:JSON table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"val" column_length:4294967295 charset:63 > > `,
+			fmt.Sprintf(`type:ROW row_event:<table_name:"vitess_json" row_changes:<after:<lengths:1 lengths:13 values:"1%s" > > > `, json),
 			`gtid`,
 			`commit`,
 		}},
@@ -1695,14 +1695,21 @@ func vstream(ctx context.Context, t *testing.T, pos string, tablePKs []*binlogda
 		}
 	}
 	return engine.Stream(ctx, pos, tablePKs, filter, func(evs []*binlogdatapb.VEvent) error {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+
 		t.Logf("Received events: %v", evs)
 		select {
 		case ch <- evs:
 		case <-ctx.Done():
 			return fmt.Errorf("engine.Stream Done() stream ended early")
+		case <-timer.C:
+			t.Log("VStream timed out waiting for events")
+			return io.EOF
 		}
 		return nil
 	})
+
 }
 
 func execStatement(t *testing.T, query string) {
