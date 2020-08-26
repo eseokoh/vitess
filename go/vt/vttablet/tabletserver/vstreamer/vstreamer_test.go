@@ -1301,18 +1301,37 @@ func TestJSON(t *testing.T) {
 	}
 	defer execStatement(t, "drop table vitess_json")
 	engine.se.Reload(context.Background())
-	json := "{\\\"foo\\\":\\\"bar\\\"}"
+	type jsonValue struct {
+		in  string
+		out string
+	}
+	jsonValues := []jsonValue{
+		{in: `{"foo":"bar"}`, out: `{\"foo\":\"bar\"}`},
+		{in: "{}", out: "{}"},
+		{in: "123456", out: "123456"},
+		{in: `"vtTablet"`, out: `\"vtTablet\"`},
+		{in: `"['\\abc\"embed\",3.14,true]"`, out: `\"['\\\\abc\\\"embed\\\",3.14,true]\"`},
+	}
+	var inputs, outputs []string
+	var outputsArray [][]string
+	fieldAdded := false
+	for i, val := range jsonValues {
+		inputs = append(inputs, fmt.Sprintf("insert into vitess_json values(%d, %s)", i+1, encodeString(val.in)))
+
+		outputs = []string{}
+		outputs = append(outputs, `begin`)
+		if !fieldAdded {
+			outputs = append(outputs, `type:FIELD field_event:<table_name:"vitess_json" fields:<name:"id" type:INT32 table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"id" column_length:11 charset:63 > fields:<name:"val" type:JSON table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"val" column_length:4294967295 charset:63 > > `)
+			fieldAdded = true
+		}
+		outputs = append(outputs, fmt.Sprintf(`type:ROW row_event:<table_name:"vitess_json" row_changes:<after:<lengths:1 lengths:%d values:"%d%s" > > > `, len(val.in), i+1, val.out))
+		outputs = append(outputs, `gtid`)
+		outputs = append(outputs, `commit`)
+		outputsArray = append(outputsArray, outputs)
+	}
 	testcases := []testcase{{
-		input: []string{
-			fmt.Sprintf(`insert into vitess_json values(1, '%s')`, json),
-		},
-		output: [][]string{{
-			`begin`,
-			`type:FIELD field_event:<table_name:"vitess_json" fields:<name:"id" type:INT32 table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"id" column_length:11 charset:63 > fields:<name:"val" type:JSON table:"vitess_json" org_table:"vitess_json" database:"vttest" org_name:"val" column_length:4294967295 charset:63 > > `,
-			fmt.Sprintf(`type:ROW row_event:<table_name:"vitess_json" row_changes:<after:<lengths:1 lengths:13 values:"1%s" > > > `, json),
-			`gtid`,
-			`commit`,
-		}},
+		input:  inputs,
+		output: outputsArray,
 	}}
 	runCases(t, nil, testcases, "", nil)
 }
