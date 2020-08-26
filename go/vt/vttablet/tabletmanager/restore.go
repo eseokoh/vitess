@@ -76,10 +76,11 @@ func (tm *TabletManager) RestoreData(ctx context.Context, logger logutil.Logger,
 }
 
 func (tm *TabletManager) restoreDataLocked(ctx context.Context, logger logutil.Logger, waitForBackupInterval time.Duration, deleteBeforeRestore bool) error {
-	var originalType topodatapb.TabletType
 	tablet := tm.Tablet()
-	originalType, tablet.Type = tablet.Type, topodatapb.TabletType_RESTORE
-	tm.updateState(ctx, tablet, "restore from backup")
+	originalType := tablet.Type
+	if err := tm.tmState.ChangeTabletType(ctx, topodatapb.TabletType_RESTORE); err != nil {
+		return err
+	}
 
 	// Try to restore. Depending on the reason for failure, we may be ok.
 	// If we're not ok, return an error and the tm will log.Fatalf,
@@ -167,8 +168,9 @@ func (tm *TabletManager) restoreDataLocked(ctx context.Context, logger logutil.L
 		// alter replication here.
 	default:
 		// If anything failed, we should reset the original tablet type
-		tablet.Type = originalType
-		tm.updateState(ctx, tablet, "failed for restore from backup")
+		if err := tm.tmState.ChangeTabletType(ctx, originalType); err != nil {
+			log.Errorf("Could not change back to original tablet type %v: %v", originalType, err)
+		}
 		return vterrors.Wrap(err, "Can't restore backup")
 	}
 
@@ -182,10 +184,7 @@ func (tm *TabletManager) restoreDataLocked(ctx context.Context, logger logutil.L
 	}
 
 	// Change type back to original type if we're ok to serve.
-	tablet.Type = originalType
-	tm.updateState(ctx, tablet, "after restore from backup")
-
-	return nil
+	return tm.tmState.ChangeTabletType(ctx, originalType)
 }
 
 // restoreToTimeFromBinlog restores to the snapshot time of the keyspace
@@ -340,9 +339,9 @@ func (tm *TabletManager) catchupToGTID(ctx context.Context, afterGTIDPos string,
 		return vterrors.Wrap(err, fmt.Sprintf("failed to restart the replication until %s GTID", afterGTIDStr))
 	}
 	log.Infof("Waiting for position to reach", beforeGTIDPosParsed.GTIDSet.Last())
-	// Could not use `agent.MysqlDaemon.WaitMasterPos` as the SLAVE thread is stopped with `START SLAVE UNTIL SQL_BEFORE_GTIDS`
+	// Could not use `agent.MysqlDaemon.WaitMasterPos` as replication is stopped with `START SLAVE UNTIL SQL_BEFORE_GTIDS`
 	// this is as per https://dev.mysql.com/doc/refman/5.6/en/start-slave.html
-	// We need to wait till the slave catch upto the specified afterGTIDPos
+	// We need to wait until replication catches upto the specified afterGTIDPos
 	chGTIDCaughtup := make(chan bool)
 	go func() {
 		timeToWait := time.Now().Add(*timeoutForGTIDLookup)
@@ -429,7 +428,7 @@ func (tm *TabletManager) startReplication(ctx context.Context, pos mysql.Positio
 	}
 
 	// Set master and start replication.
-	if err := tm.MysqlDaemon.SetMaster(ctx, ti.Tablet.MysqlHostname, int(ti.Tablet.MysqlPort), false /* slaveStopBefore */, true /* slaveStartAfter */); err != nil {
+	if err := tm.MysqlDaemon.SetMaster(ctx, ti.Tablet.MysqlHostname, int(ti.Tablet.MysqlPort), false /* stopReplicationBefore */, true /* startReplicationAfter */); err != nil {
 		return vterrors.Wrap(err, "MysqlDaemon.SetMaster failed")
 	}
 

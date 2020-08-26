@@ -104,6 +104,8 @@ type SandboxConn struct {
 
 	sExecMu sync.Mutex
 	execMu  sync.Mutex
+
+	ShardErr error
 }
 
 var _ queryservice.QueryService = (*SandboxConn)(nil) // compile-time interface check
@@ -124,6 +126,9 @@ func (sbc *SandboxConn) getError() error {
 		}
 		sbc.MustFailCodes[code] = count - 1
 		return vterrors.New(code, fmt.Sprintf("%v error", code))
+	}
+	if sbc.ShardErr != nil {
+		return sbc.ShardErr
 	}
 	return nil
 }
@@ -460,8 +465,10 @@ func (sbc *SandboxConn) reserve(ctx context.Context, target *querypb.Target, pre
 	for _, query := range preQueries {
 		sbc.Execute(ctx, target, query, bindVariables, transactionID, 0, options)
 	}
-	reservedID := sbc.ReserveID.Add(1)
-	return reservedID
+	if transactionID != 0 {
+		return transactionID
+	}
+	return sbc.ReserveID.Add(1)
 }
 
 //Release implements the QueryService interface
@@ -487,6 +494,15 @@ func (sbc *SandboxConn) getNextResult() *sqltypes.Result {
 		return r
 	}
 	return SingleRowResult
+}
+
+//StringQueries returns the queries executed as a slice of strings
+func (sbc *SandboxConn) StringQueries() []string {
+	result := make([]string, len(sbc.Queries))
+	for i, query := range sbc.Queries {
+		result[i] = query.Sql
+	}
+	return result
 }
 
 // SingleRowResult is returned when there is no pre-stored result.

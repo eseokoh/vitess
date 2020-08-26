@@ -313,11 +313,16 @@ func NewHealthCheck(ctx context.Context, retryDelay, healthCheckTimeout time.Dur
 // It does not block on making connection.
 // name is an optional tag for the tablet, e.g. an alternative address.
 func (hc *HealthCheckImpl) AddTablet(tablet *topodata.Tablet) {
-	log.Infof("Calling AddTablet for tablet: %v", tablet)
 	// check whether we should really add this tablet
 	if !hc.isIncluded(tablet) {
 		return
 	}
+	// check whether grpc port is present on tablet, if not return
+	if tablet.PortMap["grpc"] == 0 {
+		return
+	}
+
+	log.Infof("Adding tablet to healthcheck: %v", tablet)
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	if hc.healthByAlias == nil {
@@ -371,11 +376,12 @@ func (hc *HealthCheckImpl) RemoveTablet(tablet *topodata.Tablet) {
 
 // ReplaceTablet removes the old tablet and adds the new tablet.
 func (hc *HealthCheckImpl) ReplaceTablet(old, new *topodata.Tablet) {
-	hc.deleteTablet(old)
+	hc.RemoveTablet(old)
 	hc.AddTablet(new)
 }
 
 func (hc *HealthCheckImpl) deleteTablet(tablet *topodata.Tablet) {
+	log.Infof("Removing tablet from healthcheck: %v", tablet)
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 
@@ -470,7 +476,7 @@ func (hc *HealthCheckImpl) updateHealth(th *TabletHealth, shr *query.StreamHealt
 
 }
 
-// Subscribe adds a listener. Only used for testing right now
+// Subscribe adds a listener. Used by vtgate buffer to learn about master changes.
 func (hc *HealthCheckImpl) Subscribe() chan *TabletHealth {
 	hc.subMu.Lock()
 	defer hc.subMu.Unlock()
@@ -479,7 +485,7 @@ func (hc *HealthCheckImpl) Subscribe() chan *TabletHealth {
 	return c
 }
 
-// Unsubscribe removes a listener. Only used for testing right now
+// Unsubscribe removes a listener.
 func (hc *HealthCheckImpl) Unsubscribe(c chan *TabletHealth) {
 	hc.subMu.Lock()
 	defer hc.subMu.Unlock()

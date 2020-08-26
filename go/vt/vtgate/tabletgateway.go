@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"vitess.io/vitess/go/vt/topotools"
+
 	"vitess.io/vitess/go/vt/topo/topoproto"
 
 	"vitess.io/vitess/go/vt/discovery"
@@ -48,8 +50,8 @@ func init() {
 	RegisterGatewayCreator(tabletGatewayImplementation, createTabletGateway)
 }
 
-var _ discovery.HealthCheck = (*discovery.HealthCheckImpl)(nil)
 var (
+	_ discovery.HealthCheck = (*discovery.HealthCheckImpl)(nil)
 	// CellsToWatch is the list of cells the healthcheck operates over. If it is empty, only the local cell is watched
 	CellsToWatch = flag.String("cells_to_watch", "", "comma-separated list of cells for watching tablets")
 )
@@ -84,18 +86,18 @@ func createHealthCheck(ctx context.Context, retryDelay, timeout time.Duration, t
 
 // NewTabletGateway creates and returns a new TabletGateway
 func NewTabletGateway(ctx context.Context, hc discovery.HealthCheck, serv srvtopo.Server, localCell string) *TabletGateway {
-	var topoServer *topo.Server
-	if serv != nil {
-		var err error
-		topoServer, err = serv.GetTopoServer()
-		if err != nil {
-			log.Exitf("Unable to create new TabletGateway: %v", err)
-		}
-	}
+	// hack to accomodate various users of gateway + tests
 	if hc == nil {
+		var topoServer *topo.Server
+		if serv != nil {
+			var err error
+			topoServer, err = serv.GetTopoServer()
+			if err != nil {
+				log.Exitf("Unable to create new TabletGateway: %v", err)
+			}
+		}
 		hc = createHealthCheck(ctx, *HealthCheckRetryDelay, *HealthCheckTimeout, topoServer, localCell, *CellsToWatch)
 	}
-
 	gw := &TabletGateway{
 		hc:                hc,
 		srvTopoServer:     serv,
@@ -183,8 +185,8 @@ func (gw *TabletGateway) CacheStatus() TabletCacheStatusList {
 func (gw *TabletGateway) withRetry(ctx context.Context, target *querypb.Target, _ queryservice.QueryService,
 	_ string, inTransaction bool, inner func(ctx context.Context, target *querypb.Target, conn queryservice.QueryService) (bool, error)) error {
 	// for transactions, we connect to a specific tablet instead of letting gateway choose one
-	if inTransaction {
-		return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "gateway's query service can only be used for non-transactional queries")
+	if inTransaction && target.TabletType != topodatapb.TabletType_MASTER {
+		return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "gateway's query service can only be used for non-transactional queries on replicas")
 	}
 	var tabletLastUsed *topodatapb.Tablet
 	var err error
@@ -242,15 +244,12 @@ func (gw *TabletGateway) withRetry(ctx context.Context, target *querypb.Target, 
 		var th *discovery.TabletHealth
 		// skip tablets we tried before
 		for _, t := range tablets {
-			tabletLastUsed = t.Tablet
-			if _, ok := invalidTablets[topoproto.TabletAliasString(tabletLastUsed.Alias)]; !ok {
+			if _, ok := invalidTablets[topoproto.TabletAliasString(t.Tablet.Alias)]; !ok {
 				th = t
 				break
-			} else {
-				tabletLastUsed = nil
 			}
 		}
-		if tabletLastUsed == nil {
+		if th == nil {
 			// do not override error from last attempt.
 			if err == nil {
 				err = vterrors.New(vtrpcpb.Code_UNAVAILABLE, "no available connection")
@@ -258,8 +257,9 @@ func (gw *TabletGateway) withRetry(ctx context.Context, target *querypb.Target, 
 			break
 		}
 
+		tabletLastUsed = th.Tablet
 		// execute
-		if th == nil || th.Conn == nil {
+		if th.Conn == nil {
 			err = vterrors.Errorf(vtrpcpb.Code_UNAVAILABLE, "no connection for tablet %v", tabletLastUsed)
 			invalidTablets[topoproto.TabletAliasString(tabletLastUsed.Alias)] = true
 			continue
@@ -350,4 +350,18 @@ func (gw *TabletGateway) nextTablet(cell string, tablets []*discovery.TabletHeal
 // TabletsCacheStatus returns a displayable version of the health check cache.
 func (gw *TabletGateway) TabletsCacheStatus() discovery.TabletsCacheStatusList {
 	return gw.hc.CacheStatus()
+}
+
+// NewShardError returns a new error with the shard info amended.
+func NewShardError(in error, target *querypb.Target, tablet *topodatapb.Tablet) error {
+	if in == nil {
+		return nil
+	}
+	if tablet != nil {
+		return vterrors.Wrapf(in, "target: %s.%s.%s, used tablet: %s", target.Keyspace, target.Shard, topoproto.TabletTypeLString(target.TabletType), topotools.TabletIdent(tablet))
+	}
+	if target != nil {
+		return vterrors.Wrapf(in, "target: %s.%s.%s", target.Keyspace, target.Shard, topoproto.TabletTypeLString(target.TabletType))
+	}
+	return in
 }

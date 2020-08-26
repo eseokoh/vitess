@@ -134,6 +134,7 @@ func (txc *TxConn) commitNormal(ctx context.Context, session *SafeSession) error
 	return nil
 }
 
+// commit2PC will not used the pinned tablets - to make sure we use the current source, we need to use the gateway's queryservice
 func (txc *TxConn) commit2PC(ctx context.Context, session *SafeSession) error {
 	if len(session.PreSessions) != 0 || len(session.PostSessions) != 0 {
 		_ = txc.Rollback(ctx, session)
@@ -159,13 +160,7 @@ func (txc *TxConn) commit2PC(ctx context.Context, session *SafeSession) error {
 	}
 
 	err = txc.runSessions(ctx, session.ShardSessions[1:], func(ctx context.Context, s *vtgatepb.Session_ShardSession) error {
-		var qs queryservice.QueryService
-		var err error
-		qs, err = txc.queryService(s.TabletAlias)
-		if err != nil {
-			return err
-		}
-		return qs.Prepare(ctx, s.Target, s.TransactionId, dtid)
+		return txc.gateway.Prepare(ctx, s.Target, s.TransactionId, dtid)
 	})
 	if err != nil {
 		// TODO(sougou): Perform a more fine-grained cleanup
@@ -177,11 +172,7 @@ func (txc *TxConn) commit2PC(ctx context.Context, session *SafeSession) error {
 		return err
 	}
 
-	qs, err := txc.queryService(mmShard.TabletAlias)
-	if err != nil {
-		return err
-	}
-	err = qs.StartCommit(ctx, mmShard.Target, mmShard.TransactionId, dtid)
+	err = txc.gateway.StartCommit(ctx, mmShard.Target, mmShard.TransactionId, dtid)
 	if err != nil {
 		return err
 	}
@@ -240,6 +231,61 @@ func (txc *TxConn) Release(ctx context.Context, session *SafeSession) error {
 
 	allsessions := append(session.PreSessions, session.ShardSessions...)
 	allsessions = append(allsessions, session.PostSessions...)
+
+	return txc.runSessions(ctx, allsessions, func(ctx context.Context, s *vtgatepb.Session_ShardSession) error {
+		if s.ReservedId == 0 && s.TransactionId == 0 {
+			return nil
+		}
+		qs, err := txc.queryService(s.TabletAlias)
+		if err != nil {
+			return err
+		}
+		err = qs.Release(ctx, s.Target, s.TransactionId, s.ReservedId)
+		if err != nil {
+			return err
+		}
+		s.TransactionId = 0
+		s.ReservedId = 0
+		return nil
+	})
+}
+
+//ReleaseLock releases the reserved connection used for locking.
+func (txc *TxConn) ReleaseLock(ctx context.Context, session *SafeSession) error {
+	if !session.InLockSession() {
+		return nil
+	}
+	defer session.ResetLock()
+
+	ls := session.LockSession
+	if ls.ReservedId == 0 {
+		return nil
+	}
+	qs, err := txc.queryService(ls.TabletAlias)
+	if err != nil {
+		return err
+	}
+	err = qs.Release(ctx, ls.Target, 0, ls.ReservedId)
+	if err != nil {
+		return err
+	}
+	ls.ReservedId = 0
+	return nil
+
+}
+
+//ReleaseAll releases all the shard sessions and lock session.
+func (txc *TxConn) ReleaseAll(ctx context.Context, session *SafeSession) error {
+	if !session.InTransaction() && !session.InReservedConn() && !session.InLockSession() {
+		return nil
+	}
+	defer session.ResetAll()
+
+	allsessions := append(session.PreSessions, session.ShardSessions...)
+	allsessions = append(allsessions, session.PostSessions...)
+	if session.LockSession != nil {
+		allsessions = append(allsessions, session.LockSession)
+	}
 
 	return txc.runSessions(ctx, allsessions, func(ctx context.Context, s *vtgatepb.Session_ShardSession) error {
 		if s.ReservedId == 0 && s.TransactionId == 0 {
