@@ -52,7 +52,7 @@ require (
 	github.com/klauspost/cpuid v1.2.0 // indirect
 	github.com/klauspost/pgzip v1.2.4
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/krishicks/yaml-patch v0.0.10 // indirect
+	github.com/krishicks/yaml-patch v0.0.10
 	github.com/magiconair/properties v1.8.1
 	github.com/manifoldco/promptui v0.7.0
 	github.com/martini-contrib/auth v0.0.0-20150219114609-fa62c19b7ae8
