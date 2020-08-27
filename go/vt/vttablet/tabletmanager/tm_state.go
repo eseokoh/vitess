@@ -25,6 +25,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
+	"vitess.io/vitess/go/tb"
 	"vitess.io/vitess/go/trace"
 	"vitess.io/vitess/go/vt/key"
 	"vitess.io/vitess/go/vt/log"
@@ -151,7 +152,7 @@ func (ts *tmState) RefreshFromTopoInfo(ctx context.Context, shardInfo *topo.Shar
 func (ts *tmState) ChangeTabletType(ctx context.Context, tabletType topodatapb.TabletType) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
-	log.Infof("Changing Tablet Type: %v", tabletType)
+	log.Infof("Changing Tablet Type: %v: %v", tabletType, tb.Errorf(""))
 
 	if tabletType == topodatapb.TabletType_MASTER {
 		masterTermStartTime := logutil.TimeToProto(time.Now())
