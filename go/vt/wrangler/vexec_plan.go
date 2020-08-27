@@ -41,13 +41,14 @@ type vexecPlannerParams struct {
 	immutableColumnNames []string
 	updatableColumnNames []string
 	updateTemplates      []string
+	insertTemplates      []string
 }
 
 // vexecPlanner generates and executes a plan
 type vexecPlanner interface {
 	params() *vexecPlannerParams
 	exec(ctx context.Context, masterAlias *topodatapb.TabletAlias, query string) (*querypb.QueryResult, error)
-	dryRun() error
+	dryRun(ctx context.Context) error
 }
 
 // vreplicationPlanner is a vexecPlanner implementation, specific to _vt.vreplication table
@@ -80,7 +81,7 @@ func (p vreplicationPlanner) exec(
 	}
 	return qr, nil
 }
-func (p vreplicationPlanner) dryRun() error {
+func (p vreplicationPlanner) dryRun(ctx context.Context) error {
 	rsr, err := p.vx.wr.getStreams(p.vx.ctx, p.vx.workflow, p.vx.keyspace)
 	if err != nil {
 		return err
@@ -123,6 +124,22 @@ func newSchemaMigrationsPlanner(vx *vexec) vexecPlanner {
 				`update _vt.schema_migrations set migration_status='val1' where migration_uuid='val2'`,
 				`update _vt.schema_migrations set migration_status='val1' where migration_uuid='val2' and shard='val3'`,
 			},
+			insertTemplates: []string{
+				`INSERT IGNORE INTO _vt.schema_migrations (
+					migration_uuid,
+					keyspace,
+					shard,
+					mysql_schema,
+					mysql_table,
+					migration_statement,
+					strategy,
+					options,
+					requested_timestamp,
+					migration_status
+				) VALUES (
+					'val', 'val', 'val', 'val', 'val', 'val', 'val', 'val', FROM_UNIXTIME(0), 'val'
+				)`,
+			},
 		},
 	}
 }
@@ -134,7 +151,7 @@ func (p schemaMigrationsPlanner) exec(ctx context.Context, masterAlias *topodata
 	}
 	return qr, nil
 }
-func (p schemaMigrationsPlanner) dryRun() error { return nil }
+func (p schemaMigrationsPlanner) dryRun(ctx context.Context) error { return nil }
 
 // make sure these planners implement vexecPlanner interface
 var _ vexecPlanner = vreplicationPlanner{}
@@ -143,6 +160,7 @@ var _ vexecPlanner = schemaMigrationsPlanner{}
 const (
 	updateQuery = iota
 	deleteQuery
+	insertQuery
 	selectQuery
 )
 
@@ -153,6 +171,8 @@ func extractTableName(stmt sqlparser.Statement) (string, error) {
 		return sqlparser.String(stmt.TableExprs), nil
 	case *sqlparser.Delete:
 		return sqlparser.String(stmt.TableExprs), nil
+	case *sqlparser.Insert:
+		return sqlparser.String(stmt.Table), nil
 	case *sqlparser.Select:
 		return sqlparser.String(stmt.From), nil
 	}
@@ -165,7 +185,7 @@ func qualifiedTableName(tableName string) string {
 }
 
 // getPlanner returns a specific planner appropriate for the queried table
-func (vx *vexec) getPlanner() error {
+func (vx *vexec) getPlanner(ctx context.Context) error {
 	switch vx.tableName {
 	case qualifiedTableName(schemaMigrationsTableName):
 		vx.planner = newSchemaMigrationsPlanner(vx)
@@ -179,14 +199,16 @@ func (vx *vexec) getPlanner() error {
 
 // buildPlan builds an execution plan. More specifically, it generates the query which is then sent to
 // relevant vttablet servers
-func (vx *vexec) buildPlan() (plan *vexecPlan, err error) {
+func (vx *vexec) buildPlan(ctx context.Context) (plan *vexecPlan, err error) {
 	switch stmt := vx.stmt.(type) {
 	case *sqlparser.Update:
-		plan, err = vx.buildUpdatePlan(vx.planner, stmt)
+		plan, err = vx.buildUpdatePlan(ctx, vx.planner, stmt)
 	case *sqlparser.Delete:
-		plan, err = vx.buildDeletePlan(vx.planner, stmt)
+		plan, err = vx.buildDeletePlan(ctx, vx.planner, stmt)
+	case *sqlparser.Insert:
+		plan, err = vx.buildInsertPlan(ctx, vx.planner, stmt)
 	case *sqlparser.Select:
-		plan, err = vx.buildSelectPlan(vx.planner, stmt)
+		plan, err = vx.buildSelectPlan(ctx, vx.planner, stmt)
 	default:
 		return nil, fmt.Errorf("query not supported by vexec: %s", sqlparser.String(stmt))
 	}
@@ -258,7 +280,7 @@ func (vx *vexec) addDefaultWheres(planner vexecPlanner, where *sqlparser.Where) 
 }
 
 // buildUpdatePlan builds a plan for an UPDATE query
-func (vx *vexec) buildUpdatePlan(planner vexecPlanner, upd *sqlparser.Update) (*vexecPlan, error) {
+func (vx *vexec) buildUpdatePlan(ctx context.Context, planner vexecPlanner, upd *sqlparser.Update) (*vexecPlan, error) {
 	if upd.OrderBy != nil || upd.Limit != nil {
 		return nil, fmt.Errorf("unsupported construct: %v", sqlparser.String(upd))
 	}
@@ -287,13 +309,13 @@ func (vx *vexec) buildUpdatePlan(planner vexecPlanner, upd *sqlparser.Update) (*
 			}
 		}
 	}
-	if updateTemplates := plannerParams.updateTemplates; len(updateTemplates) > 0 {
-		match, err := sqlparser.QueryMatchesTemplates(vx.query, updateTemplates)
+	if templates := plannerParams.updateTemplates; len(templates) > 0 {
+		match, err := sqlparser.QueryMatchesTemplates(vx.query, templates)
 		if err != nil {
 			return nil, err
 		}
 		if !match {
-			return nil, fmt.Errorf("Query must match one of these templates: %s", strings.Join(updateTemplates, "; "))
+			return nil, fmt.Errorf("Query must match one of these templates: %s", strings.Join(templates, "; "))
 		}
 	}
 	upd.Where = vx.addDefaultWheres(planner, upd.Where)
@@ -308,7 +330,7 @@ func (vx *vexec) buildUpdatePlan(planner vexecPlanner, upd *sqlparser.Update) (*
 }
 
 // buildUpdatePlan builds a plan for a DELETE query
-func (vx *vexec) buildDeletePlan(planner vexecPlanner, del *sqlparser.Delete) (*vexecPlan, error) {
+func (vx *vexec) buildDeletePlan(ctx context.Context, planner vexecPlanner, del *sqlparser.Delete) (*vexecPlan, error) {
 	if del.Targets != nil {
 		return nil, fmt.Errorf("unsupported construct: %v", sqlparser.String(del))
 	}
@@ -330,8 +352,31 @@ func (vx *vexec) buildDeletePlan(planner vexecPlanner, del *sqlparser.Delete) (*
 	}, nil
 }
 
+// buildInsertPlan builds a plan for a INSERT query
+func (vx *vexec) buildInsertPlan(ctx context.Context, planner vexecPlanner, ins *sqlparser.Insert) (*vexecPlan, error) {
+	plannerParams := planner.params()
+	// at this time INSERT is only supported if an insert template exists
+	if templates := plannerParams.insertTemplates; len(templates) > 0 {
+		match, err := sqlparser.QueryMatchesTemplates(vx.query, templates)
+		if err != nil {
+			return nil, err
+		}
+		if !match {
+			return nil, fmt.Errorf("Query must match one of these templates: %s", strings.Join(templates, "; "))
+		}
+	}
+
+	buf := sqlparser.NewTrackedBuffer(nil)
+	buf.Myprintf("%v", ins)
+
+	return &vexecPlan{
+		opcode:      insertQuery,
+		parsedQuery: buf.ParsedQuery(),
+	}, nil
+}
+
 // buildUpdatePlan builds a plan for a SELECT query
-func (vx *vexec) buildSelectPlan(planner vexecPlanner, sel *sqlparser.Select) (*vexecPlan, error) {
+func (vx *vexec) buildSelectPlan(ctx context.Context, planner vexecPlanner, sel *sqlparser.Select) (*vexecPlan, error) {
 	sel.Where = vx.addDefaultWheres(planner, sel.Where)
 	buf := sqlparser.NewTrackedBuffer(nil)
 	buf.Myprintf("%v", sel)
