@@ -192,8 +192,10 @@ func (ct *controller) runBlp(ctx context.Context) (err error) {
 		log.Infof("trying to find a tablet eligible for vreplication. stream id: %v", ct.id)
 		tablet, err = ct.tabletPicker.PickForStreaming(ctx)
 		if err != nil {
+			ct.setMessage(dbClient, fmt.Sprintf("Error picking tablet: %s", err.Error()))
 			return err
 		}
+		ct.setMessage(dbClient, fmt.Sprintf("Picked source tablet: %s", tablet.Alias.String()))
 		log.Infof("found a tablet eligible for vreplication. stream id: %v  tablet: %s", ct.id, tablet.Alias.String())
 		ct.sourceTablet.Set(tablet.Alias.String())
 	}
@@ -239,9 +241,18 @@ func (ct *controller) runBlp(ctx context.Context) (err error) {
 		defer vsClient.Close(ctx)
 
 		vr := newVReplicator(ct.id, &ct.source, vsClient, ct.blpStats, dbClient, ct.mysqld, ct.vre)
+
 		return vr.Replicate(ctx)
 	}
 	return fmt.Errorf("missing source")
+}
+
+func (ct *controller) setMessage(dbClient binlogplayer.DBClient, message string) error {
+	query := fmt.Sprintf("update _vt.vreplication set message=%v where id=%v", encodeString(binlogplayer.MessageTruncate(message)), ct.id)
+	if _, err := dbClient.ExecuteFetch(query, 1); err != nil {
+		return fmt.Errorf("could not set message: %v: %v", query, err)
+	}
+	return nil
 }
 
 func (ct *controller) Stop() {

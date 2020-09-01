@@ -1201,6 +1201,7 @@ func TestPlayerDDL(t *testing.T) {
 	expectDBClientQueries(t, []string{
 		"/update.*'Running'",
 		// Second update is from vreplicator.
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update.*'Running'",
 		"begin",
 		fmt.Sprintf("/update.*'%s'", pos2),
@@ -1310,6 +1311,7 @@ func TestPlayerStopPos(t *testing.T) {
 	expectDBClientQueries(t, []string{
 		"/update.*'Running'",
 		// Second update is from vreplicator.
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update.*'Running'",
 		"begin",
 		"insert into yes(id,val) values (1,'aaa')",
@@ -1334,6 +1336,7 @@ func TestPlayerStopPos(t *testing.T) {
 	expectDBClientQueries(t, []string{
 		"/update.*'Running'",
 		// Second update is from vreplicator.
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update.*'Running'",
 		"begin",
 		// Since 'no' generates empty transactions that are skipped by
@@ -1351,6 +1354,7 @@ func TestPlayerStopPos(t *testing.T) {
 	expectDBClientQueries(t, []string{
 		"/update.*'Running'",
 		// Second update is from vreplicator.
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update.*'Running'",
 		"/update.*'Stopped'.*already reached",
 	})
@@ -1970,6 +1974,7 @@ func TestRestartOnVStreamEnd(t *testing.T) {
 		"insert into t1 values(2, 'aaa')",
 	})
 	expectDBClientQueries(t, []string{
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update _vt.vreplication set state='Running'",
 		"begin",
 		"insert into t1(id,val) values (2,'aaa')",
@@ -2041,6 +2046,7 @@ func startVReplication(t *testing.T, bls *binlogdatapb.BinlogSource, pos string)
 	}
 	expectDBClientQueries(t, []string{
 		"/insert into _vt.vreplication",
+		"/update _vt.vreplication set message='Picked source tablet.*",
 		"/update _vt.vreplication set state='Running'",
 	})
 
