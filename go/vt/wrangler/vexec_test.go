@@ -19,12 +19,14 @@ package wrangler
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/test/utils"
 	"vitess.io/vitess/go/vt/logutil"
@@ -206,6 +208,7 @@ func TestWorkflowListStreams(t *testing.T) {
 			"80-"
 		]
 	},
+	"MaxVReplicationLag": 0,
 	"ShardStatuses": {
 		"-80/zone1-0000000200": {
 			"MasterReplicationStatuses": [
@@ -229,6 +232,7 @@ func TestWorkflowListStreams(t *testing.T) {
 					"State": "Copying",
 					"MaxReplicationLag": 0,
 					"DBName": "vt_target",
+					"TransactionTimestamp": 0,
 					"TimeUpdated": 1234,
 					"Message": "",
 					"CopyState": [
@@ -264,6 +268,7 @@ func TestWorkflowListStreams(t *testing.T) {
 					"State": "Copying",
 					"MaxReplicationLag": 0,
 					"DBName": "vt_target",
+					"TransactionTimestamp": 0,
 					"TimeUpdated": 1234,
 					"Message": "",
 					"CopyState": [
@@ -281,7 +286,11 @@ func TestWorkflowListStreams(t *testing.T) {
 }
 
 `
-	require.Equal(t, want, logger.String())
+	got := logger.String()
+	// MaxVReplicationLag needs to be reset. This can't be determinable in this kind of a test because time.Now() is constantly shifting.
+	re := regexp.MustCompile(`"MaxVReplicationLag": \d+`)
+	got = re.ReplaceAllLiteralString(got, `"MaxVReplicationLag": 0`)
+	require.Equal(t, want, got)
 
 	results, err := wr.execWorkflowAction(ctx, workflow, keyspace, "stop", false)
 	require.Nil(t, err)

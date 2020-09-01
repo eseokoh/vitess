@@ -65,7 +65,7 @@ type yySymType struct {
 	expr                 Expr
 	exprs                Exprs
 	boolVal              BoolVal
-	sqlVal               *SQLVal
+	literal              *Literal
 	colTuple             ColTuple
 	values               Values
 	valTuple             ValTuple
@@ -4284,7 +4284,7 @@ yydefault:
 			yyDollar[2].columnType.OnUpdate = yyDollar[5].optVal
 			yyDollar[2].columnType.Autoincrement = yyDollar[6].boolVal
 			yyDollar[2].columnType.KeyOpt = yyDollar[7].colKeyOpt
-			yyDollar[2].columnType.Comment = yyDollar[8].sqlVal
+			yyDollar[2].columnType.Comment = yyDollar[8].literal
 			yyVAL.columnDefinition = &ColumnDefinition{Name: yyDollar[1].colIdent, Type: yyDollar[2].columnType}
 		}
 	case 98:
@@ -4300,7 +4300,7 @@ yydefault:
 //line sql.y:780
 		{
 			yyVAL.columnType = yyDollar[1].columnType
-			yyVAL.columnType.Length = yyDollar[2].sqlVal
+			yyVAL.columnType.Length = yyDollar[2].literal
 		}
 	case 103:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -4412,19 +4412,19 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:865
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 120:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:869
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 121:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:873
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 122:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -4436,25 +4436,25 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line sql.y:883
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal, Charset: yyDollar[3].str, Collate: yyDollar[4].str}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal, Charset: yyDollar[3].str, Collate: yyDollar[4].str}
 		}
 	case 124:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line sql.y:887
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal, Charset: yyDollar[3].str, Collate: yyDollar[4].str}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal, Charset: yyDollar[3].str, Collate: yyDollar[4].str}
 		}
 	case 125:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:891
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 126:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:895
 		{
-			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.columnType = ColumnType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 127:
 		yyDollar = yyS[yypt-3 : yypt+1]
@@ -4587,13 +4587,13 @@ yydefault:
 		yyDollar = yyS[yypt-0 : yypt+1]
 //line sql.y:990
 		{
-			yyVAL.sqlVal = nil
+			yyVAL.literal = nil
 		}
 	case 149:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line sql.y:994
 		{
-			yyVAL.sqlVal = NewIntVal(yyDollar[2].bytes)
+			yyVAL.literal = NewIntLiteral(yyDollar[2].bytes)
 		}
 	case 150:
 		yyDollar = yyS[yypt-0 : yypt+1]
@@ -4606,8 +4606,8 @@ yydefault:
 //line sql.y:1003
 		{
 			yyVAL.LengthScaleOption = LengthScaleOption{
-				Length: NewIntVal(yyDollar[2].bytes),
-				Scale:  NewIntVal(yyDollar[4].bytes),
+				Length: NewIntLiteral(yyDollar[2].bytes),
+				Scale:  NewIntLiteral(yyDollar[4].bytes),
 			}
 		}
 	case 152:
@@ -4621,7 +4621,7 @@ yydefault:
 //line sql.y:1015
 		{
 			yyVAL.LengthScaleOption = LengthScaleOption{
-				Length: NewIntVal(yyDollar[2].bytes),
+				Length: NewIntLiteral(yyDollar[2].bytes),
 			}
 		}
 	case 154:
@@ -4629,8 +4629,8 @@ yydefault:
 //line sql.y:1021
 		{
 			yyVAL.LengthScaleOption = LengthScaleOption{
-				Length: NewIntVal(yyDollar[2].bytes),
-				Scale:  NewIntVal(yyDollar[4].bytes),
+				Length: NewIntLiteral(yyDollar[2].bytes),
+				Scale:  NewIntLiteral(yyDollar[4].bytes),
 			}
 		}
 	case 155:
@@ -4781,13 +4781,13 @@ yydefault:
 		yyDollar = yyS[yypt-0 : yypt+1]
 //line sql.y:1135
 		{
-			yyVAL.sqlVal = nil
+			yyVAL.literal = nil
 		}
 	case 180:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:1139
 		{
-			yyVAL.sqlVal = NewStrVal(yyDollar[2].bytes)
+			yyVAL.literal = NewStrLiteral(yyDollar[2].bytes)
 		}
 	case 181:
 		yyDollar = yyS[yypt-5 : yypt+1]
@@ -4824,13 +4824,13 @@ yydefault:
 //line sql.y:1169
 		{
 			// should not be string
-			yyVAL.indexOption = &IndexOption{Name: string(yyDollar[1].bytes), Value: NewIntVal(yyDollar[3].bytes)}
+			yyVAL.indexOption = &IndexOption{Name: string(yyDollar[1].bytes), Value: NewIntLiteral(yyDollar[3].bytes)}
 		}
 	case 187:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:1174
 		{
-			yyVAL.indexOption = &IndexOption{Name: string(yyDollar[1].bytes), Value: NewStrVal(yyDollar[2].bytes)}
+			yyVAL.indexOption = &IndexOption{Name: string(yyDollar[1].bytes), Value: NewStrLiteral(yyDollar[2].bytes)}
 		}
 	case 188:
 		yyDollar = yyS[yypt-0 : yypt+1]
@@ -4944,7 +4944,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:1266
 		{
-			yyVAL.indexColumn = &IndexColumn{Column: yyDollar[1].colIdent, Length: yyDollar[2].sqlVal}
+			yyVAL.indexColumn = &IndexColumn{Column: yyDollar[1].colIdent, Length: yyDollar[2].literal}
 		}
 	case 207:
 		yyDollar = yyS[yypt-3 : yypt+1]
@@ -6773,7 +6773,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:2682
 		{
-			if num, ok := yyDollar[2].expr.(*SQLVal); ok && num.Type == IntVal {
+			if num, ok := yyDollar[2].expr.(*Literal); ok && num.Type == IntVal {
 				yyVAL.expr = num
 			} else {
 				yyVAL.expr = &UnaryExpr{Operator: UPlusStr, Expr: yyDollar[2].expr}
@@ -6783,13 +6783,13 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:2690
 		{
-			if num, ok := yyDollar[2].expr.(*SQLVal); ok && num.Type == IntVal {
+			if num, ok := yyDollar[2].expr.(*Literal); ok && num.Type == IntVal {
 				// Handle double negative
 				if num.Val[0] == '-' {
 					num.Val = num.Val[1:]
 					yyVAL.expr = num
 				} else {
-					yyVAL.expr = NewIntVal(append([]byte("-"), num.Val...))
+					yyVAL.expr = NewIntLiteral(append([]byte("-"), num.Val...))
 				}
 			} else {
 				yyVAL.expr = &UnaryExpr{Operator: UMinusStr, Expr: yyDollar[2].expr}
@@ -6887,13 +6887,13 @@ yydefault:
 		yyDollar = yyS[yypt-8 : yypt+1]
 //line sql.y:2780
 		{
-			yyVAL.expr = &SubstrExpr{StrVal: NewStrVal(yyDollar[3].bytes), From: yyDollar[5].expr, To: yyDollar[7].expr}
+			yyVAL.expr = &SubstrExpr{StrVal: NewStrLiteral(yyDollar[3].bytes), From: yyDollar[5].expr, To: yyDollar[7].expr}
 		}
 	case 539:
 		yyDollar = yyS[yypt-8 : yypt+1]
 //line sql.y:2784
 		{
-			yyVAL.expr = &SubstrExpr{StrVal: NewStrVal(yyDollar[3].bytes), From: yyDollar[5].expr, To: yyDollar[7].expr}
+			yyVAL.expr = &SubstrExpr{StrVal: NewStrLiteral(yyDollar[3].bytes), From: yyDollar[5].expr, To: yyDollar[7].expr}
 		}
 	case 540:
 		yyDollar = yyS[yypt-9 : yypt+1]
@@ -7109,19 +7109,19 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:2962
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 578:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line sql.y:2966
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal, Charset: yyDollar[3].str, Operator: CharacterSetStr}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal, Charset: yyDollar[3].str, Operator: CharacterSetStr}
 		}
 	case 579:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line sql.y:2970
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal, Charset: string(yyDollar[3].colIdent.String())}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal, Charset: string(yyDollar[3].colIdent.String())}
 		}
 	case 580:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -7133,7 +7133,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:2978
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 582:
 		yyDollar = yyS[yypt-2 : yypt+1]
@@ -7153,7 +7153,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:2992
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 585:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -7171,7 +7171,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:3004
 		{
-			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].sqlVal}
+			yyVAL.convertType = &ConvertType{Type: string(yyDollar[1].bytes), Length: yyDollar[2].literal}
 		}
 	case 588:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -7261,43 +7261,43 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3075
 		{
-			yyVAL.expr = NewStrVal(yyDollar[1].bytes)
+			yyVAL.expr = NewStrLiteral(yyDollar[1].bytes)
 		}
 	case 603:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3079
 		{
-			yyVAL.expr = NewHexVal(yyDollar[1].bytes)
+			yyVAL.expr = NewHexLiteral(yyDollar[1].bytes)
 		}
 	case 604:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3083
 		{
-			yyVAL.expr = NewBitVal(yyDollar[1].bytes)
+			yyVAL.expr = NewBitLiteral(yyDollar[1].bytes)
 		}
 	case 605:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3087
 		{
-			yyVAL.expr = NewIntVal(yyDollar[1].bytes)
+			yyVAL.expr = NewIntLiteral(yyDollar[1].bytes)
 		}
 	case 606:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3091
 		{
-			yyVAL.expr = NewFloatVal(yyDollar[1].bytes)
+			yyVAL.expr = NewFloatLiteral(yyDollar[1].bytes)
 		}
 	case 607:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3095
 		{
-			yyVAL.expr = NewHexNum(yyDollar[1].bytes)
+			yyVAL.expr = NewHexNumLiteral(yyDollar[1].bytes)
 		}
 	case 608:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3099
 		{
-			yyVAL.expr = NewValArg(yyDollar[1].bytes)
+			yyVAL.expr = NewArgument(yyDollar[1].bytes)
 		}
 	case 609:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -7314,19 +7314,19 @@ yydefault:
 				yylex.Error("expecting value after next")
 				return 1
 			}
-			yyVAL.expr = NewIntVal([]byte("1"))
+			yyVAL.expr = NewIntLiteral([]byte("1"))
 		}
 	case 611:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:3118
 		{
-			yyVAL.expr = NewIntVal(yyDollar[1].bytes)
+			yyVAL.expr = NewIntLiteral(yyDollar[1].bytes)
 		}
 	case 612:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line sql.y:3122
 		{
-			yyVAL.expr = NewValArg(yyDollar[1].bytes)
+			yyVAL.expr = NewArgument(yyDollar[1].bytes)
 		}
 	case 613:
 		yyDollar = yyS[yypt-0 : yypt+1]
@@ -7576,13 +7576,13 @@ yydefault:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line sql.y:3328
 		{
-			yyVAL.setExpr = &SetExpr{Name: yyDollar[1].colIdent, Expr: NewStrVal([]byte("on"))}
+			yyVAL.setExpr = &SetExpr{Name: yyDollar[1].colIdent, Expr: NewStrLiteral([]byte("on"))}
 		}
 	case 654:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line sql.y:3332
 		{
-			yyVAL.setExpr = &SetExpr{Name: yyDollar[1].colIdent, Expr: NewStrVal([]byte("off"))}
+			yyVAL.setExpr = &SetExpr{Name: yyDollar[1].colIdent, Expr: NewStrLiteral([]byte("off"))}
 		}
 	case 655:
 		yyDollar = yyS[yypt-3 : yypt+1]
@@ -7613,13 +7613,13 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3359
 		{
-			yyVAL.expr = NewStrVal([]byte(yyDollar[1].colIdent.String()))
+			yyVAL.expr = NewStrLiteral([]byte(yyDollar[1].colIdent.String()))
 		}
 	case 662:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line sql.y:3363
 		{
-			yyVAL.expr = NewStrVal(yyDollar[1].bytes)
+			yyVAL.expr = NewStrLiteral(yyDollar[1].bytes)
 		}
 	case 663:
 		yyDollar = yyS[yypt-1 : yypt+1]
